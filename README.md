@@ -9,7 +9,7 @@ Docente: Mg. Luis Enrique Ramírez Pacheco.
 
 - Castillo Canales, Korayma Anaís
 - Hernández Hernández, José Antonio
-- Neyra Quiroz, José Guillermo
+- Alvarez Nia Elizabeth
 - Rojas Castillo, Sebastián Jaren
 
 ## Roles
