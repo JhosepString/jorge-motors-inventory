@@ -2,8 +2,7 @@
 
 Plataforma web para gestionar el inventario de la mecánica automotriz **Jorge Motors** (Pueblo Nuevo, Chincha, Ica). Reemplaza el control en hojas de Excel por un sistema que actualiza el stock en cada entrada o salida, guarda el historial de movimientos y avisa automáticamente al proveedor cuando un repuesto queda por debajo de su stock mínimo.
 
-Proyecto del curso **Arquitectura de Software** — Universidad Nacional de Cañete.
-Docente: Mg. Luis Enrique Ramírez Pacheco.
+Proyecto del curso **Diseño de procesos de negocios** — Universidad Nacional de Cañete.
 
 ## Integrantes
 
