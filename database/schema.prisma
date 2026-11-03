@@ -1,0 +1,163 @@
+// Esquema de Prisma para SQL Server (espejo de schema.sql)
+// Los nombres van en camelCase en el código y en snake_case en la base (@map).
+// Las restricciones CHECK, el índice filtrado y los triggers viven en schema.sql:
+// la base se crea con ese script, no con "prisma migrate".
+// La cadena de conexión está en prisma.config.ts (Prisma 7).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"  // ruta relativa a backend/prisma/
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+model Usuario {
+  id            Int          @id @default(autoincrement())
+  nombres       String       @db.NVarChar(100)
+  apellidos     String       @db.NVarChar(100)
+  email         String       @unique(map: "uq_usuario_email") @db.NVarChar(150)
+  passwordHash  String       @map("password_hash") @db.NVarChar(255)
+  rol           String       @default("AUXILIAR_INVENTARIO", map: "df_usuario_rol") @db.NVarChar(25) // ADMINISTRADOR | AUXILIAR_INVENTARIO
+  activo        Boolean      @default(true, map: "df_usuario_activo")
+  creadoEn      DateTime     @default(now(), map: "df_usuario_creado_en") @map("creado_en") @db.DateTime2
+  actualizadoEn DateTime     @default(now(), map: "df_usuario_actualizado_en") @updatedAt @map("actualizado_en") @db.DateTime2
+
+  movimientos   Movimiento[]
+  auditorias    Auditoria[]
+
+  @@map("usuario")
+}
+
+model Categoria {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique(map: "uq_categoria_nombre") @db.NVarChar(80)
+  descripcion String?    @db.NVarChar(255)
+  activo      Boolean    @default(true, map: "df_categoria_activo")
+
+  productos   Producto[]
+
+  @@map("categoria")
+}
+
+model Proveedor {
+  id             Int           @id @default(autoincrement())
+  ruc            String        @unique(map: "uq_proveedor_ruc") @db.Char(11)
+  razonSocial    String        @map("razon_social") @db.NVarChar(150)
+  contacto       String?       @db.NVarChar(120)
+  telefono       String?       @db.NVarChar(20)
+  email          String?       @db.NVarChar(150)
+  direccion      String?       @db.NVarChar(200)
+  ciudad         String?       @db.NVarChar(80)
+  canalPreferido String        @default("CORREO", map: "df_proveedor_canal") @map("canal_preferido") @db.NVarChar(10) // CORREO | SMS | WHATSAPP
+  activo         Boolean       @default(true, map: "df_proveedor_activo")
+  creadoEn       DateTime      @default(now(), map: "df_proveedor_creado_en") @map("creado_en") @db.DateTime2
+
+  productos      Producto[]
+  alertas        AlertaStock[]
+
+  @@map("proveedor")
+}
+
+model Producto {
+  id            Int           @id @default(autoincrement())
+  sku           String        @unique(map: "uq_producto_sku") @db.NVarChar(20)
+  nombre        String        @db.NVarChar(150)
+  descripcion   String?       @db.NVarChar(500)
+  marca         String?       @db.NVarChar(80)
+  unidadMedida  String        @default("UNIDAD", map: "df_producto_unidad") @map("unidad_medida") @db.NVarChar(10)
+  precioCompra  Decimal       @default(0, map: "df_producto_precio_compra") @map("precio_compra") @db.Decimal(10, 2)
+  precioVenta   Decimal       @default(0, map: "df_producto_precio_venta") @map("precio_venta") @db.Decimal(10, 2)
+  stockMinimo   Int           @default(0, map: "df_producto_stock_minimo") @map("stock_minimo")
+  categoriaId   Int           @map("categoria_id")
+  proveedorId   Int?          @map("proveedor_id")
+  activo        Boolean       @default(true, map: "df_producto_activo")
+  creadoEn      DateTime      @default(now(), map: "df_producto_creado_en") @map("creado_en") @db.DateTime2
+  actualizadoEn DateTime      @default(now(), map: "df_producto_actualizado_en") @updatedAt @map("actualizado_en") @db.DateTime2
+
+  categoria     Categoria     @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_producto_categoria")
+  proveedor     Proveedor?    @relation(fields: [proveedorId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_producto_proveedor")
+  stock         Stock?
+  movimientos   Movimiento[]
+  alertas       AlertaStock[]
+
+  @@index([categoriaId], map: "idx_producto_categoria")
+  @@index([proveedorId], map: "idx_producto_proveedor")
+  @@index([nombre], map: "idx_producto_nombre")
+  @@map("producto")
+}
+
+model Stock {
+  id                  Int      @id @default(autoincrement())
+  productoId          Int      @unique(map: "uq_stock_producto") @map("producto_id")
+  cantidadActual      Int      @default(0, map: "df_stock_cantidad") @map("cantidad_actual")
+  ubicacion           String?  @db.NVarChar(20)
+  ultimaActualizacion DateTime @default(now(), map: "df_stock_actualizacion") @map("ultima_actualizacion") @db.DateTime2
+
+  producto            Producto @relation(fields: [productoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_stock_producto")
+
+  @@map("stock")
+}
+
+model Movimiento {
+  id              Int      @id @default(autoincrement())
+  productoId      Int      @map("producto_id")
+  usuarioId       Int      @map("usuario_id")
+  tipo            String   @db.NVarChar(10) // ENTRADA | SALIDA
+  cantidad        Int
+  stockAnterior   Int      @map("stock_anterior")
+  stockResultante Int      @map("stock_resultante")
+  motivo          String?  @db.NVarChar(200)
+  referencia      String?  @db.NVarChar(50)
+  fecha           DateTime @default(now(), map: "df_movimiento_fecha") @db.DateTime2
+
+  producto        Producto @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_producto")
+  usuario         Usuario  @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_usuario")
+
+  @@index([productoId, fecha], map: "idx_movimiento_producto_fecha")
+  @@index([usuarioId], map: "idx_movimiento_usuario")
+  @@index([fecha], map: "idx_movimiento_fecha")
+  @@map("movimiento")
+}
+
+model AlertaStock {
+  id             Int        @id @default(autoincrement())
+  productoId     Int        @map("producto_id")
+  proveedorId    Int?       @map("proveedor_id")
+  stockDetectado Int        @map("stock_detectado")
+  stockMinimo    Int        @map("stock_minimo")
+  estado         String     @default("PENDIENTE", map: "df_alerta_estado") @db.NVarChar(10) // PENDIENTE -> ENVIADA -> ATENDIDA
+  canal          String?    @db.NVarChar(10) // CORREO | SMS | WHATSAPP
+  fechaGenerada  DateTime   @default(now(), map: "df_alerta_fecha_generada") @map("fecha_generada") @db.DateTime2
+  fechaEnviada   DateTime?  @map("fecha_enviada") @db.DateTime2
+  fechaAtendida  DateTime?  @map("fecha_atendida") @db.DateTime2
+
+  producto       Producto   @relation(fields: [productoId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_alerta_producto")
+  proveedor      Proveedor? @relation(fields: [proveedorId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_alerta_proveedor")
+
+  @@index([estado], map: "idx_alerta_estado")
+  @@map("alerta_stock")
+}
+
+model Auditoria {
+  id            BigInt   @id @default(autoincrement())
+  usuarioId     Int?     @map("usuario_id")
+  rol           String?  @db.NVarChar(25)
+  accion        String   @db.NVarChar(30) // LOGIN, CREAR, EDITAR, REGISTRAR_SALIDA, ENVIAR_ALERTA...
+  entidad       String   @db.NVarChar(30) // SESION, USUARIO, PRODUCTO, MOVIMIENTO, ALERTA_STOCK...
+  entidadId     Int?     @map("entidad_id")
+  descripcion   String   @db.NVarChar(300)
+  valorAnterior String?  @map("valor_anterior") @db.NVarChar(Max) // JSON
+  valorNuevo    String?  @map("valor_nuevo") @db.NVarChar(Max) // JSON
+  ip            String?  @db.NVarChar(45)
+  fecha         DateTime @default(now(), map: "df_auditoria_fecha") @db.DateTime2
+
+  usuario       Usuario? @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_auditoria_usuario")
+
+  @@index([fecha], map: "idx_auditoria_fecha")
+  @@index([usuarioId, fecha], map: "idx_auditoria_usuario_fecha")
+  @@index([entidad, entidadId], map: "idx_auditoria_entidad")
+  @@map("auditoria")
+}
